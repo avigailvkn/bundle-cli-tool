@@ -1,32 +1,30 @@
-﻿using fib;
+using fib;
 using System.CommandLine;
-using System.Diagnostics.Tracing;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
-Option<string[]> extensionOption = new Option<string[]>(
+Option<string[]> fileExtensionsOption = new Option<string[]>(
     name: "--extensions",
     description: "list of extensions of the files to bundle")
 { IsRequired = true, AllowMultipleArgumentsPerToken = true }
     .FromAmong(Info.allowedExtensions);
-extensionOption.AddAlias("-e");
+fileExtensionsOption.AddAlias("-e");
 
-Option<FileInfo> outputFileOption = new Option<FileInfo>(
+Option<FileInfo> outputFilePathOption = new Option<FileInfo>(
     name: "--output-file",
     description: "name of output file",
         isDefault: true,
-            parseArgument: result =>//result->FileInfo(result.Tokens.Single().Value)
+            parseArgument: result =>
             {
-                if (result.Tokens.Count == 0)//no -o option was chosen
-                {//what if bundle exists?                    
-                    return new FileInfo(Methods.BiggestNumberBundleFile(Directory.GetCurrentDirectory()));
+                if (result.Tokens.Count == 0)
+                {
+                    return new FileInfo(Methods.GetLargestNumberedBundleFile(Directory.GetCurrentDirectory()));
                 }
                 string? filePath = result.Tokens.Single().Value;
                 if (File.Exists(filePath))
                 {
-                    //this does an error message
                     result.ErrorMessage = "Output file exists already, give another path for output file";
                     return null;
                 }
@@ -40,23 +38,21 @@ Option<FileInfo> outputFileOption = new Option<FileInfo>(
                     return new FileInfo(filePath);
                 }
             });
-outputFileOption.AddAlias("-o");
+outputFilePathOption.AddAlias("-o");
 
-Option<DirectoryInfo> inputDirectoryOption = new Option<DirectoryInfo>(
+Option<DirectoryInfo> sourceDirectoryOption = new Option<DirectoryInfo>(
     name: "--input-dir",
     description: "name of input directory",
     isDefault: true,
-            parseArgument: result =>//result->FileInfo(result.Tokens.Single().Value)
+            parseArgument: result =>
             {
-                if (result.Tokens.Count == 0)//no -i option was chosen
+                if (result.Tokens.Count == 0)
                 {
                     return new DirectoryInfo(Directory.GetCurrentDirectory());
-
                 }
                 string? dirPath = result.Tokens.Single().Value;
                 if (!Directory.Exists(dirPath))
                 {
-                    //this does an error message
                     result.ErrorMessage = "Input Directory does not exist";
                     return null;
                 }
@@ -65,61 +61,58 @@ Option<DirectoryInfo> inputDirectoryOption = new Option<DirectoryInfo>(
                     return new DirectoryInfo(dirPath);
                 }
             });
-inputDirectoryOption.AddAlias("-i");
+sourceDirectoryOption.AddAlias("-i");
 
-Option<bool> noteOption = new Option<bool>(
+Option<bool> includeNoteOption = new Option<bool>(
     name: "--note",
     description: "include a comment with code source for each file");
-noteOption.AddAlias("-n");
+includeNoteOption.AddAlias("-n");
 
-Option<string> sortOption = new Option<string>(
+Option<string> fileSortingOption = new Option<string>(
     name: "--sort",
     description: "sort the files, default by file-names",
     getDefaultValue: () => "name"
     ).FromAmong("extension", "name");
-sortOption.AddAlias("-s");
+fileSortingOption.AddAlias("-s");
 
-Option<bool> removeEmptyLinesOption = new Option<bool>(
+Option<bool> stripEmptyLinesOption = new Option<bool>(
     name: "--remove-empty-lines",
     description: "remove empty lines from source files");
-removeEmptyLinesOption.AddAlias("-rel");
+stripEmptyLinesOption.AddAlias("-rel");
 
-Option<bool> recursiveOption = new Option<bool>(
+Option<bool> recurseOption = new Option<bool>(
     name: "--recursive",
     description: "do the action recursively");
-recursiveOption.AddAlias("-rec");
+recurseOption.AddAlias("-rec");
 
-Option<string> authorOption = new Option<string>(
+Option<string> contributorNameOption = new Option<string>(
     name: "--author",
     description: "include author name");
-authorOption.AddAlias("-a");
+contributorNameOption.AddAlias("-a");
 
-RootCommand rootCommand = new RootCommand("root command description");
+RootCommand mainCommand = new RootCommand("root command description");
 
-Command bundleCommand = new Command(
+Command createBundleCommand = new Command(
     name: "bundle",
     description: $"bundle source code files into one file\nfiles in the following sub directories wont be included:\n{string.Join("|", Info.excludedDirectories)}")
-    {extensionOption, outputFileOption, noteOption, sortOption,removeEmptyLinesOption,recursiveOption,authorOption,inputDirectoryOption};
+    { fileExtensionsOption, outputFilePathOption, includeNoteOption, fileSortingOption, stripEmptyLinesOption, recurseOption, contributorNameOption, sourceDirectoryOption };
 
-Command createRspCommand = new Command(
+Command generateRspFileCommand = new Command(
     name: "create-rsp",
     description: "create .rsp file ");
 
-createRspCommand.SetHandler(() =>
+generateRspFileCommand.SetHandler(() =>
 {
-    Handlers.HandleCreateRsp();
+    Handlers.ProcessCreateRsp();
 });
-//TODO: make file tasks async
-bundleCommand.SetHandler((extensionOption, outputFileOption, noteOption, sortOption, removeEmptyLinesOption, recursiveOption, authorOption, inputDirectoryOption) =>
+
+createBundleCommand.SetHandler((fileExtensionsOption, outputFilePathOption, includeNoteOption, fileSortingOption, stripEmptyLinesOption, recurseOption, contributorNameOption, sourceDirectoryOption) =>
 {
-    Handlers.HandleBundle(extensionOption, outputFileOption, noteOption, sortOption, removeEmptyLinesOption, recursiveOption, authorOption, inputDirectoryOption);
+    Handlers.ProcessBundle(fileExtensionsOption, outputFilePathOption, includeNoteOption, fileSortingOption, stripEmptyLinesOption, recurseOption, contributorNameOption, sourceDirectoryOption);
 },
-   extensionOption, outputFileOption, noteOption, sortOption, removeEmptyLinesOption, recursiveOption, authorOption, inputDirectoryOption);
+   fileExtensionsOption, outputFilePathOption, includeNoteOption, fileSortingOption, stripEmptyLinesOption, recurseOption, contributorNameOption, sourceDirectoryOption);
 
-rootCommand.AddCommand(bundleCommand);
-rootCommand.AddCommand(createRspCommand);
+mainCommand.AddCommand(createBundleCommand);
+mainCommand.AddCommand(generateRspFileCommand);
 
-return await rootCommand.InvokeAsync(args);
-
-
-
+return await mainCommand.InvokeAsync(args);
