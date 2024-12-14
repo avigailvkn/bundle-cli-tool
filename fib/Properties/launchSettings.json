@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "fib": {
+      "commandName": "Project",
+      "commandLineArgs": "fib bundle\n--extensions txt\n--note false\n--recursive false\n--remove-empty-lines false"
+    }
+  }
+}
